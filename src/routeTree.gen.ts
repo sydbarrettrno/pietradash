@@ -9,8 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as ProprietarioRouteImport } from './routes/proprietario'
+import { Route as PendenciasRouteImport } from './routes/pendencias'
+import { Route as ItensControleRouteImport } from './routes/itens-controle'
+import { Route as DisciplinasRouteImport } from './routes/disciplinas'
+import { Route as DiarioRouteImport } from './routes/diario'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProprietarioRoute = ProprietarioRouteImport.update({
+  id: '/proprietario',
+  path: '/proprietario',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PendenciasRoute = PendenciasRouteImport.update({
+  id: '/pendencias',
+  path: '/pendencias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ItensControleRoute = ItensControleRouteImport.update({
+  id: '/itens-controle',
+  path: '/itens-controle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DisciplinasRoute = DisciplinasRouteImport.update({
+  id: '/disciplinas',
+  path: '/disciplinas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiarioRoute = DiarioRouteImport.update({
+  id: '/diario',
+  path: '/diario',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +55,116 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/diario': typeof DiarioRoute
+  '/disciplinas': typeof DisciplinasRoute
+  '/itens-controle': typeof ItensControleRoute
+  '/pendencias': typeof PendenciasRoute
+  '/proprietario': typeof ProprietarioRoute
+  '/relatorios': typeof RelatoriosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/diario': typeof DiarioRoute
+  '/disciplinas': typeof DisciplinasRoute
+  '/itens-controle': typeof ItensControleRoute
+  '/pendencias': typeof PendenciasRoute
+  '/proprietario': typeof ProprietarioRoute
+  '/relatorios': typeof RelatoriosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/diario': typeof DiarioRoute
+  '/disciplinas': typeof DisciplinasRoute
+  '/itens-controle': typeof ItensControleRoute
+  '/pendencias': typeof PendenciasRoute
+  '/proprietario': typeof ProprietarioRoute
+  '/relatorios': typeof RelatoriosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/diario'
+    | '/disciplinas'
+    | '/itens-controle'
+    | '/pendencias'
+    | '/proprietario'
+    | '/relatorios'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/diario'
+    | '/disciplinas'
+    | '/itens-controle'
+    | '/pendencias'
+    | '/proprietario'
+    | '/relatorios'
+  id:
+    | '__root__'
+    | '/'
+    | '/diario'
+    | '/disciplinas'
+    | '/itens-controle'
+    | '/pendencias'
+    | '/proprietario'
+    | '/relatorios'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DiarioRoute: typeof DiarioRoute
+  DisciplinasRoute: typeof DisciplinasRoute
+  ItensControleRoute: typeof ItensControleRoute
+  PendenciasRoute: typeof PendenciasRoute
+  ProprietarioRoute: typeof ProprietarioRoute
+  RelatoriosRoute: typeof RelatoriosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proprietario': {
+      id: '/proprietario'
+      path: '/proprietario'
+      fullPath: '/proprietario'
+      preLoaderRoute: typeof ProprietarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pendencias': {
+      id: '/pendencias'
+      path: '/pendencias'
+      fullPath: '/pendencias'
+      preLoaderRoute: typeof PendenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/itens-controle': {
+      id: '/itens-controle'
+      path: '/itens-controle'
+      fullPath: '/itens-controle'
+      preLoaderRoute: typeof ItensControleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/disciplinas': {
+      id: '/disciplinas'
+      path: '/disciplinas'
+      fullPath: '/disciplinas'
+      preLoaderRoute: typeof DisciplinasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diario': {
+      id: '/diario'
+      path: '/diario'
+      fullPath: '/diario'
+      preLoaderRoute: typeof DiarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,6 +177,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DiarioRoute: DiarioRoute,
+  DisciplinasRoute: DisciplinasRoute,
+  ItensControleRoute: ItensControleRoute,
+  PendenciasRoute: PendenciasRoute,
+  ProprietarioRoute: ProprietarioRoute,
+  RelatoriosRoute: RelatoriosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
