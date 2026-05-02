@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as ProprietarioRouteImport } from './routes/proprietario'
 import { Route as PendenciasRouteImport } from './routes/pendencias'
+import { Route as ObrasRouteImport } from './routes/obras'
 import { Route as ItensControleRouteImport } from './routes/itens-controle'
 import { Route as DisciplinasRouteImport } from './routes/disciplinas'
 import { Route as DiarioRouteImport } from './routes/diario'
@@ -30,6 +31,11 @@ const ProprietarioRoute = ProprietarioRouteImport.update({
 const PendenciasRoute = PendenciasRouteImport.update({
   id: '/pendencias',
   path: '/pendencias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ObrasRoute = ObrasRouteImport.update({
+  id: '/obras',
+  path: '/obras',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ItensControleRoute = ItensControleRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/diario': typeof DiarioRoute
   '/disciplinas': typeof DisciplinasRoute
   '/itens-controle': typeof ItensControleRoute
+  '/obras': typeof ObrasRoute
   '/pendencias': typeof PendenciasRoute
   '/proprietario': typeof ProprietarioRoute
   '/relatorios': typeof RelatoriosRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/diario': typeof DiarioRoute
   '/disciplinas': typeof DisciplinasRoute
   '/itens-controle': typeof ItensControleRoute
+  '/obras': typeof ObrasRoute
   '/pendencias': typeof PendenciasRoute
   '/proprietario': typeof ProprietarioRoute
   '/relatorios': typeof RelatoriosRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/diario': typeof DiarioRoute
   '/disciplinas': typeof DisciplinasRoute
   '/itens-controle': typeof ItensControleRoute
+  '/obras': typeof ObrasRoute
   '/pendencias': typeof PendenciasRoute
   '/proprietario': typeof ProprietarioRoute
   '/relatorios': typeof RelatoriosRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/diario'
     | '/disciplinas'
     | '/itens-controle'
+    | '/obras'
     | '/pendencias'
     | '/proprietario'
     | '/relatorios'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/diario'
     | '/disciplinas'
     | '/itens-controle'
+    | '/obras'
     | '/pendencias'
     | '/proprietario'
     | '/relatorios'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/diario'
     | '/disciplinas'
     | '/itens-controle'
+    | '/obras'
     | '/pendencias'
     | '/proprietario'
     | '/relatorios'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   DiarioRoute: typeof DiarioRoute
   DisciplinasRoute: typeof DisciplinasRoute
   ItensControleRoute: typeof ItensControleRoute
+  ObrasRoute: typeof ObrasRoute
   PendenciasRoute: typeof PendenciasRoute
   ProprietarioRoute: typeof ProprietarioRoute
   RelatoriosRoute: typeof RelatoriosRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/pendencias'
       fullPath: '/pendencias'
       preLoaderRoute: typeof PendenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/obras': {
+      id: '/obras'
+      path: '/obras'
+      fullPath: '/obras'
+      preLoaderRoute: typeof ObrasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/itens-controle': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   DiarioRoute: DiarioRoute,
   DisciplinasRoute: DisciplinasRoute,
   ItensControleRoute: ItensControleRoute,
+  ObrasRoute: ObrasRoute,
   PendenciasRoute: PendenciasRoute,
   ProprietarioRoute: ProprietarioRoute,
   RelatoriosRoute: RelatoriosRoute,
