@@ -33,7 +33,8 @@ const nav = [
 
 export function AppShell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { data, activeObra, setActiveObra, resetDemoData } = usePietraData();
+  const { data, activeObra, setActiveObra, resetDemoData, persistenceMode, syncError } =
+    usePietraData();
 
   return (
     <div className="min-h-screen flex bg-surface">
@@ -93,13 +94,26 @@ export function AppShell() {
             </select>
             <div className="text-xs text-sidebar-foreground/60 mt-2">{activeObra.endereco}</div>
           </div>
-          <button
-            type="button"
-            onClick={resetDemoData}
-            className="h-8 w-full rounded-md border border-sidebar-border text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-          >
-            Restaurar demo
-          </button>
+          <div className="rounded-md border border-sidebar-border bg-sidebar-accent/50 px-2 py-2">
+            <div className="text-[11px] uppercase tracking-wider text-sidebar-foreground/50">
+              Fonte dos dados
+            </div>
+            <div className="mt-0.5 text-xs text-sidebar-foreground/80">
+              {persistenceMode === "supabase" ? "Supabase conectado" : "Demo local"}
+            </div>
+            {syncError && (
+              <div className="mt-1 line-clamp-2 text-[11px] text-warning">Fallback local ativo</div>
+            )}
+          </div>
+          {persistenceMode === "local" && (
+            <button
+              type="button"
+              onClick={resetDemoData}
+              className="h-8 w-full rounded-md border border-sidebar-border text-xs text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
+            >
+              Restaurar demo
+            </button>
+          )}
         </div>
       </aside>
 

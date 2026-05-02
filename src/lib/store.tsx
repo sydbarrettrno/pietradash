@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,8 +20,24 @@ import {
   type Pendencia,
   type PietraData,
 } from "@/lib/data";
-
-const STORAGE_KEY = "pietra.dashboard.data.v1";
+import {
+  deleteRemoteDiario,
+  deleteRemoteDisciplina,
+  deleteRemoteItemControle,
+  deleteRemoteObra,
+  deleteRemotePendencia,
+  isSupabaseConfigured,
+  loadCachedData,
+  saveCachedData,
+  saveRemoteActiveObra,
+  saveRemoteDiario,
+  saveRemoteDisciplina,
+  saveRemoteItemControle,
+  saveRemoteObra,
+  saveRemotePendencia,
+  seedRemoteIfEmpty,
+  type PersistenceMode,
+} from "@/lib/persistence";
 
 type StoreContextValue = {
   data: PietraData;
@@ -37,6 +54,8 @@ type StoreContextValue = {
   saveDiario: (diario: Diario) => void;
   deleteDiario: (diarioId: string) => void;
   resetDemoData: () => void;
+  persistenceMode: PersistenceMode;
+  syncError: string | null;
 };
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -112,177 +131,321 @@ function normalizeData(value: unknown): PietraData {
 
 export function PietraDataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<PietraData>(demoData);
+  const dataRef = useRef<PietraData>(demoData);
   const [hydrated, setHydrated] = useState(false);
+  const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>(
+    isSupabaseConfigured() ? "supabase" : "local",
+  );
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        setData(normalizeData(JSON.parse(raw)));
-      } catch {
-        setData(demoData);
-      }
+    let cancelled = false;
+    const cached = normalizeData(loadCachedData() ?? demoData);
+    dataRef.current = cached;
+    setData(cached);
+
+    if (!isSupabaseConfigured()) {
+      setPersistenceMode("local");
+      setHydrated(true);
+      return;
     }
-    setHydrated(true);
+
+    setPersistenceMode("supabase");
+    seedRemoteIfEmpty(cached)
+      .then((remoteData) => {
+        if (cancelled) return;
+        const normalized = normalizeData(remoteData);
+        dataRef.current = normalized;
+        setData(normalized);
+        saveCachedData(normalized);
+        setSyncError(null);
+        setHydrated(true);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setPersistenceMode("local");
+        setSyncError(error instanceof Error ? error.message : "Falha ao sincronizar dados reais.");
+        setHydrated(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    saveCachedData(data);
   }, [data, hydrated]);
 
-  const setActiveObra = useCallback((obraId: string) => {
-    setData((current) =>
-      current.obras.some((obra) => obra.id === obraId)
-        ? touch({ ...current, activeObraId: obraId })
-        : current,
-    );
-  }, []);
+  const commitData = useCallback(
+    (
+      updater: (current: PietraData) => PietraData,
+      remoteOperation?: (nextData: PietraData) => Promise<void>,
+    ) => {
+      const nextData = touch(normalizeData(updater(dataRef.current)));
+      dataRef.current = nextData;
+      setData(nextData);
+      saveCachedData(nextData);
 
-  const saveObra = useCallback((obra: Obra) => {
-    setData((current) => {
-      const exists = current.obras.some((item) => item.id === obra.id);
-      return touch({
-        ...current,
-        activeObraId: current.activeObraId || obra.id,
-        obras: exists
-          ? current.obras.map((item) => (item.id === obra.id ? obra : item))
-          : [...current.obras, obra],
+      if (!remoteOperation || !isSupabaseConfigured()) return;
+
+      setPersistenceMode("supabase");
+      setSyncError(null);
+      void remoteOperation(nextData).catch((error: unknown) => {
+        setPersistenceMode("local");
+        setSyncError(error instanceof Error ? error.message : "Falha ao salvar no Supabase.");
       });
-    });
-  }, []);
+    },
+    [],
+  );
 
-  const deleteObra = useCallback((obraId: string) => {
-    setData((current) => {
-      if (current.obras.length <= 1) return current;
-      const obras = current.obras.filter((obra) => obra.id !== obraId);
-      const activeObraId = current.activeObraId === obraId ? obras[0].id : current.activeObraId;
+  const setActiveObra = useCallback(
+    (obraId: string) => {
+      commitData(
+        (current) =>
+          current.obras.some((obra) => obra.id === obraId)
+            ? { ...current, activeObraId: obraId }
+            : current,
+        async (nextData) => {
+          await saveRemoteActiveObra(nextData.activeObraId);
+        },
+      );
+    },
+    [commitData],
+  );
 
-      return touch({
-        ...current,
-        activeObraId,
-        obras,
-        disciplinas: current.disciplinas.filter((item) => item.obraId !== obraId),
-        itensControle: current.itensControle.filter((item) => item.obraId !== obraId),
-        pendencias: current.pendencias.filter((item) => item.obraId !== obraId),
-        diarios: current.diarios.filter((item) => item.obraId !== obraId),
-      });
-    });
-  }, []);
+  const saveObra = useCallback(
+    (obra: Obra) => {
+      const normalized = normalizeObra(obra);
 
-  const saveDisciplina = useCallback((disciplina: Disciplina) => {
-    setData((current) => {
-      const exists = current.disciplinas.some((item) => item.id === disciplina.id);
-      return touch({
-        ...current,
-        disciplinas: exists
-          ? current.disciplinas.map((item) => (item.id === disciplina.id ? disciplina : item))
-          : [...current.disciplinas, disciplina],
-      });
-    });
-  }, []);
+      commitData(
+        (current) => {
+          const exists = current.obras.some((item) => item.id === normalized.id);
+          return {
+            ...current,
+            activeObraId: current.activeObraId || normalized.id,
+            obras: exists
+              ? current.obras.map((item) => (item.id === normalized.id ? normalized : item))
+              : [...current.obras, normalized],
+          };
+        },
+        async () => {
+          await saveRemoteObra(normalized);
+        },
+      );
+    },
+    [commitData],
+  );
 
-  const deleteDisciplina = useCallback((disciplinaId: string) => {
-    setData((current) => {
-      const itemIds = current.itensControle
-        .filter((item) => item.disciplinaId === disciplinaId)
-        .map((item) => item.id);
+  const deleteObra = useCallback(
+    (obraId: string) => {
+      if (dataRef.current.obras.length <= 1) return;
 
-      return touch({
-        ...current,
-        disciplinas: current.disciplinas.filter((item) => item.id !== disciplinaId),
-        itensControle: current.itensControle.filter((item) => item.disciplinaId !== disciplinaId),
-        pendencias: current.pendencias.filter((item) => item.disciplinaId !== disciplinaId),
-        diarios: current.diarios.filter(
-          (item) => item.disciplinaId !== disciplinaId && !itemIds.includes(item.itemControleId),
-        ),
-      });
-    });
-  }, []);
+      commitData(
+        (current) => {
+          const obras = current.obras.filter((obra) => obra.id !== obraId);
+          const activeObraId = current.activeObraId === obraId ? obras[0].id : current.activeObraId;
 
-  const saveItemControle = useCallback((item: ItemControle) => {
-    const normalized = { ...item, avancoFisico: clampPct(item.avancoFisico) };
+          return {
+            ...current,
+            activeObraId,
+            obras,
+            disciplinas: current.disciplinas.filter((item) => item.obraId !== obraId),
+            itensControle: current.itensControle.filter((item) => item.obraId !== obraId),
+            pendencias: current.pendencias.filter((item) => item.obraId !== obraId),
+            diarios: current.diarios.filter((item) => item.obraId !== obraId),
+          };
+        },
+        async (nextData) => {
+          await deleteRemoteObra(obraId);
+          await saveRemoteActiveObra(nextData.activeObraId);
+        },
+      );
+    },
+    [commitData],
+  );
 
-    setData((current) => {
-      const exists = current.itensControle.some((currentItem) => currentItem.id === normalized.id);
-      return touch({
-        ...current,
-        itensControle: exists
-          ? current.itensControle.map((currentItem) =>
-              currentItem.id === normalized.id ? normalized : currentItem,
-            )
-          : [...current.itensControle, normalized],
-      });
-    });
-  }, []);
+  const saveDisciplina = useCallback(
+    (disciplina: Disciplina) => {
+      commitData(
+        (current) => {
+          const exists = current.disciplinas.some((item) => item.id === disciplina.id);
+          return {
+            ...current,
+            disciplinas: exists
+              ? current.disciplinas.map((item) => (item.id === disciplina.id ? disciplina : item))
+              : [...current.disciplinas, disciplina],
+          };
+        },
+        async () => {
+          await saveRemoteDisciplina(disciplina);
+        },
+      );
+    },
+    [commitData],
+  );
 
-  const deleteItemControle = useCallback((itemId: string) => {
-    setData((current) =>
-      touch({
-        ...current,
-        itensControle: current.itensControle.filter((item) => item.id !== itemId),
-        diarios: current.diarios.filter((item) => item.itemControleId !== itemId),
-      }),
-    );
-  }, []);
+  const deleteDisciplina = useCallback(
+    (disciplinaId: string) => {
+      commitData(
+        (current) => {
+          const itemIds = current.itensControle
+            .filter((item) => item.disciplinaId === disciplinaId)
+            .map((item) => item.id);
 
-  const savePendencia = useCallback((pendencia: Pendencia) => {
-    setData((current) => {
-      const exists = current.pendencias.some((item) => item.id === pendencia.id);
-      return touch({
-        ...current,
-        pendencias: exists
-          ? current.pendencias.map((item) => (item.id === pendencia.id ? pendencia : item))
-          : [...current.pendencias, pendencia],
-      });
-    });
-  }, []);
+          return {
+            ...current,
+            disciplinas: current.disciplinas.filter((item) => item.id !== disciplinaId),
+            itensControle: current.itensControle.filter(
+              (item) => item.disciplinaId !== disciplinaId,
+            ),
+            pendencias: current.pendencias.filter((item) => item.disciplinaId !== disciplinaId),
+            diarios: current.diarios.filter(
+              (item) =>
+                item.disciplinaId !== disciplinaId && !itemIds.includes(item.itemControleId),
+            ),
+          };
+        },
+        async () => {
+          await deleteRemoteDisciplina(disciplinaId);
+        },
+      );
+    },
+    [commitData],
+  );
 
-  const deletePendencia = useCallback((pendenciaId: string) => {
-    setData((current) =>
-      touch({
-        ...current,
-        pendencias: current.pendencias.filter((item) => item.id !== pendenciaId),
-      }),
-    );
-  }, []);
+  const saveItemControle = useCallback(
+    (item: ItemControle) => {
+      const normalized = { ...item, avancoFisico: clampPct(item.avancoFisico) };
 
-  const saveDiario = useCallback((diario: Diario) => {
-    const normalized = { ...diario, avancoItem: clampPct(diario.avancoItem) };
+      commitData(
+        (current) => {
+          const exists = current.itensControle.some(
+            (currentItem) => currentItem.id === normalized.id,
+          );
+          return {
+            ...current,
+            itensControle: exists
+              ? current.itensControle.map((currentItem) =>
+                  currentItem.id === normalized.id ? normalized : currentItem,
+                )
+              : [...current.itensControle, normalized],
+          };
+        },
+        async () => {
+          await saveRemoteItemControle(normalized);
+        },
+      );
+    },
+    [commitData],
+  );
 
-    setData((current) => {
-      const exists = current.diarios.some((item) => item.id === normalized.id);
+  const deleteItemControle = useCallback(
+    (itemId: string) => {
+      commitData(
+        (current) => ({
+          ...current,
+          itensControle: current.itensControle.filter((item) => item.id !== itemId),
+          diarios: current.diarios.filter((item) => item.itemControleId !== itemId),
+        }),
+        async () => {
+          await deleteRemoteItemControle(itemId);
+        },
+      );
+    },
+    [commitData],
+  );
 
-      return touch({
-        ...current,
-        diarios: exists
-          ? current.diarios.map((item) => (item.id === normalized.id ? normalized : item))
-          : [normalized, ...current.diarios],
-        itensControle: current.itensControle.map((item) =>
-          item.id === normalized.itemControleId
-            ? {
-                ...item,
-                avancoFisico: normalized.avancoItem,
-                status: normalized.statusDia === "critico" ? "critico" : item.status,
-              }
-            : item,
-        ),
-      });
-    });
-  }, []);
+  const savePendencia = useCallback(
+    (pendencia: Pendencia) => {
+      commitData(
+        (current) => {
+          const exists = current.pendencias.some((item) => item.id === pendencia.id);
+          return {
+            ...current,
+            pendencias: exists
+              ? current.pendencias.map((item) => (item.id === pendencia.id ? pendencia : item))
+              : [...current.pendencias, pendencia],
+          };
+        },
+        async () => {
+          await saveRemotePendencia(pendencia);
+        },
+      );
+    },
+    [commitData],
+  );
 
-  const deleteDiario = useCallback((diarioId: string) => {
-    setData((current) =>
-      touch({
-        ...current,
-        diarios: current.diarios.filter((item) => item.id !== diarioId),
-      }),
-    );
-  }, []);
+  const deletePendencia = useCallback(
+    (pendenciaId: string) => {
+      commitData(
+        (current) => ({
+          ...current,
+          pendencias: current.pendencias.filter((item) => item.id !== pendenciaId),
+        }),
+        async () => {
+          await deleteRemotePendencia(pendenciaId);
+        },
+      );
+    },
+    [commitData],
+  );
+
+  const saveDiario = useCallback(
+    (diario: Diario) => {
+      const normalized = { ...diario, avancoItem: clampPct(diario.avancoItem) };
+
+      commitData(
+        (current) => {
+          const exists = current.diarios.some((item) => item.id === normalized.id);
+
+          return {
+            ...current,
+            diarios: exists
+              ? current.diarios.map((item) => (item.id === normalized.id ? normalized : item))
+              : [normalized, ...current.diarios],
+            itensControle: current.itensControle.map((item) =>
+              item.id === normalized.itemControleId
+                ? {
+                    ...item,
+                    avancoFisico: normalized.avancoItem,
+                    status: normalized.statusDia === "critico" ? "critico" : item.status,
+                  }
+                : item,
+            ),
+          };
+        },
+        async (nextData) => {
+          await saveRemoteDiario(normalized);
+          const updatedItem = nextData.itensControle.find(
+            (item) => item.id === normalized.itemControleId,
+          );
+          if (updatedItem) await saveRemoteItemControle(updatedItem);
+        },
+      );
+    },
+    [commitData],
+  );
+
+  const deleteDiario = useCallback(
+    (diarioId: string) => {
+      commitData(
+        (current) => ({
+          ...current,
+          diarios: current.diarios.filter((item) => item.id !== diarioId),
+        }),
+        async () => {
+          await deleteRemoteDiario(diarioId);
+        },
+      );
+    },
+    [commitData],
+  );
 
   const resetDemoData = useCallback(() => {
-    setData(demoData);
-  }, []);
+    commitData(() => demoData);
+  }, [commitData]);
 
   const activeObra = data.obras.find((obra) => obra.id === data.activeObraId) ?? data.obras[0];
 
@@ -302,6 +465,8 @@ export function PietraDataProvider({ children }: { children: ReactNode }) {
       saveDiario,
       deleteDiario,
       resetDemoData,
+      persistenceMode,
+      syncError,
     }),
     [
       activeObra,
@@ -318,6 +483,8 @@ export function PietraDataProvider({ children }: { children: ReactNode }) {
       saveObra,
       savePendencia,
       setActiveObra,
+      persistenceMode,
+      syncError,
     ],
   );
 
